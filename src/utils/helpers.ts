@@ -1,0 +1,184 @@
+import { AnalysisResult, RecommendationVerdict, SavedReview } from "../types";
+
+export function formatVerdict(verdict: RecommendationVerdict): {
+  label: string;
+  textColor: string;
+  bgColor: string;
+  borderColor: string;
+} {
+  switch (verdict) {
+    case "STRONG_MATCH":
+      return {
+        label: "Strong Match",
+        textColor: "text-emerald-700",
+        bgColor: "bg-emerald-50",
+        borderColor: "border-emerald-200",
+      };
+    case "GOOD_MATCH":
+      return {
+        label: "Good Match",
+        textColor: "text-indigo-700",
+        bgColor: "bg-indigo-50",
+        borderColor: "border-indigo-200",
+      };
+    case "POTENTIAL_WITH_UPSKILLING":
+      return {
+        label: "Upskilling Potential",
+        textColor: "text-amber-700",
+        bgColor: "bg-amber-50",
+        borderColor: "border-amber-200",
+      };
+    case "LOW_MATCH":
+    default:
+      return {
+        label: "Low Alignment",
+        textColor: "text-rose-700",
+        bgColor: "bg-rose-50",
+        borderColor: "border-rose-200",
+      };
+  }
+}
+
+export function getScoreTone(score: number): {
+  stroke: string;
+  text: string;
+  bg: string;
+} {
+  if (score >= 85) {
+    return {
+      stroke: "#10B981", // emerald-500
+      text: "text-emerald-600",
+      bg: "bg-emerald-500",
+    };
+  }
+  if (score >= 70) {
+    return {
+      stroke: "#6366F1", // indigo-500
+      text: "text-indigo-600",
+      bg: "bg-indigo-500",
+    };
+  }
+  if (score >= 50) {
+    return {
+      stroke: "#F59E0B", // amber-500
+      text: "text-amber-600",
+      bg: "bg-amber-500",
+    };
+  }
+  return {
+    stroke: "#F43F5E", // rose-500
+    text: "text-rose-600",
+    bg: "bg-rose-500",
+  };
+}
+
+const STORAGE_KEY = "talentmatch_ai_reviews_v1";
+
+export function getSavedReviews(): SavedReview[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error("Failed to load saved reviews from localStorage", e);
+    return [];
+  }
+}
+
+export function saveReview(analysis: AnalysisResult, notes = ""): SavedReview {
+  const reviews = getSavedReviews();
+  const newReview: SavedReview = {
+    id: `rev-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    savedAt: new Date().toISOString(),
+    candidateName: analysis.candidateName || "Candidate",
+    targetJobTitle: analysis.targetJobTitle || "Target Role",
+    overallMatchScore: analysis.overallMatchScore,
+    verdict: analysis.recommendationVerdict,
+    analysis,
+    notes,
+  };
+  reviews.unshift(newReview);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews));
+  return newReview;
+}
+
+export function deleteSavedReview(id: string): void {
+  const reviews = getSavedReviews().filter((r) => r.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews));
+}
+
+export function exportAnalysisAsMarkdown(analysis: AnalysisResult): void {
+  const content = `# Candidate Profile Analysis: ${analysis.candidateName}
+**Target Role:** ${analysis.targetJobTitle || "Not Specified"}
+**Overall Match Score:** ${analysis.overallMatchScore}% (${analysis.recommendationVerdict})
+**Evaluated At:** ${analysis.analyzedAt || new Date().toLocaleDateString()}
+
+---
+
+## 1. Executive Summary
+${analysis.summary}
+
+**Verdict Takeaway:** ${analysis.verdictHeadline}
+**Rationale:** ${analysis.verdictRationale}
+
+---
+
+## 2. Score Breakdown
+- **Hard Technical Skills:** ${analysis.breakdownScores.hardSkillsScore}%
+- **Soft Skills & Communication:** ${analysis.breakdownScores.softSkillsScore}%
+- **Experience Relevance:** ${analysis.breakdownScores.experienceRelevanceScore}%
+- **Seniority & Scope:** ${analysis.breakdownScores.seniorityScore}%
+- **Education & Certifications:** ${analysis.breakdownScores.educationCertificationsScore}%
+
+---
+
+## 3. Skills Matrix
+### Matched Hard Skills
+${analysis.skillsAnalysis.matchedSkills.map((s) => `- [x] ${s}`).join("\n")}
+
+### Missing Critical Skills
+${analysis.skillsAnalysis.missingCriticalSkills.map((s) => `- [ ] ${s}`).join("\n") || "- None identified"}
+
+### Transferable / Bonus Skills
+${analysis.skillsAnalysis.transferableOrBonusSkills.map((s) => `- ${s}`).join("\n") || "- None"}
+
+---
+
+## 4. Experience & Track Record Alignment
+- **Candidate Level:** ${analysis.experienceComparison.candidateLevel}
+- **Required Level:** ${analysis.experienceComparison.requiredLevel}
+- **Fit Analysis:** ${analysis.experienceComparison.levelFitExplanation}
+
+### Matched Quantified Achievements
+${analysis.experienceComparison.keyAchievementsMatched.map((a) => `- ${a}`).join("\n")}
+
+---
+
+## 5. Potential Gaps & Risk Flags
+${analysis.redFlagsOrRisks.map((r) => `- ⚠️ ${r}`).join("\n") || "- No significant risks identified"}
+
+---
+
+## 6. Tailored Technical & Behavioral Interview Questions
+${analysis.tailoredInterviewQuestions
+  .map(
+    (q, i) => `### Question ${i + 1} [${q.category}]
+**Question:** ${q.question}
+**Why Ask:** ${q.whyAsk}
+**What to Listen For:** ${q.idealAnswerSignals}
+`
+  )
+  .join("\n")}
+
+---
+*Report generated by TalentMatch AI*
+`;
+
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${analysis.candidateName.replace(/\s+/g, "_")}_evaluation_report.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

@@ -1,0 +1,6 @@
+{
+  "name": "TalentMatch AI - Resume & Candidate Profile Analyzer",
+  "description": "AI-powered resume analyzer and candidate profile matcher against job descriptions with deep skill gap analysis, fit scoring, and tailored interview rubrics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
